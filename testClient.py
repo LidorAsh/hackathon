@@ -1,5 +1,7 @@
 import socket
-import sys
+import struct
+import sys, select
+from struct import *
 
 
 def client_program():
@@ -7,82 +9,60 @@ def client_program():
         client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) # UDP
         client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         client.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        client.bind(("", 13117))
+        client.bind(('<broadcast>', 13117))
+        #client.connect(("", 13117))
         
         
 
         print("Client started, listening for offer requests... ")
-        data, addr = client.recvfrom(1024)
-        header = data[:5]
-        message = data[7:].decode('utf-8') #The message
-        #print(addr[0])
-        address = addr[0]
-        
-        #SERVER_ADDR = (0,0)
-        #Check the message format:
-        if header == bytes.fromhex('abcddcba') + bytes.fromhex('02'):
-            dest_port = int.from_bytes(data[5:7],"big")
-            #print(dest_port)
-            #print(address)
-            SERVER_ADDR = (address,dest_port)
-
-    
-        
-            # Create a TCP/IP socket
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-            # Connect the socket to the port where the server is listening
-            #server_address = (addr[0], dest_port)
-            print(f"Received offer from {SERVER_ADDR[0]}, attempting to connect...")
-            sock.connect(SERVER_ADDR)
-            print("Connected! Please wait for more instructions.")
-            
+        while True:
             try:
-                # Send the name of the team
-                name = input("Enter name:")
-                sock.sendall(str.encode(name))
+                data, addr = client.recvfrom(1024)
+                (magicCookie, msg_type, server_port) = struct.unpack('!IbH', data)
+                #Check the message format:
+                if magicCookie == 0xabcddcba:
+                    if msg_type == 0x2:
+                        dest_port = int.from_bytes(data[5:7],"big")
+                        SERVER_ADDR = (addr[0],server_port)
+                        break
+            except:
+                print("connection failed " + str(addr[0]))
 
-                # welcoming message
-                data = sock.recv(2048).decode('utf-8')
-                print(data)
+        
+        
+            
+        print(f"Received offer from {SERVER_ADDR[0]}, attempting to connect...")
+        # Create a TCP/IP socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        sock.connect(SERVER_ADDR)
+        
+        try:
+            # Send the name of the team
+            sock.sendall(str.encode("Instinct\n"))
 
-                #send the answer
-                answer = input()
-                sock.sendall(str.encode(answer))
+            # welcoming message
+            data = sock.recv(2048).decode('utf-8')
+            print(data)
 
-                data = sock.recv(2048).decode('utf-8')
-                print(data)
-
-
-            finally:
-                print("Server disconnected, listening for offer requests...")
-                sock.close()
+            #send the answer
+            i, o, e = select.select( [sys.stdin], [], [], 10 )
+            if (i):
+                answer = sys.stdin.readline().strip()
+            else:
+                answer = "0"
                 
+            sock.sendall(str.encode(answer))
 
-    
+            data = sock.recv(2048).decode('utf-8')
+            print(data)
 
-    """
-    host = socket.gethostname()  # as both code is running on same pc
-    port = 5000  # socket server port number
 
-    client_socket = socket.socket()  # instantiate
-    #client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1) ##################
-    #client_socket.bind(('',13117))###########################
-
-    client_socket.connect((host, port))  # connect to the server
-
-    message = input(" -> ")  # take input
-
-    while message.lower().strip() != 'bye':
-        client_socket.send(message.encode())  # send message
-        data = client_socket.recv(1024).decode()  # receive response
-
-        print('Received from server: ' + data)  # show in terminal
-
-        message = input(" -> ")  # again take input
-
-    client_socket.close()  # close the connection
-    """
+        except ConnectionError:
+            print("Server disconnected, listening for offer requests...")
+            sock.close()
+                
 
 
 if __name__ == '__main__':
