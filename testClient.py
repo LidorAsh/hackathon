@@ -3,6 +3,7 @@ import struct
 import sys, select
 from struct import *
 import threading
+import time
 
 
 def client_program():
@@ -60,6 +61,7 @@ def client_program():
         
             data = sock.recv(2048).decode('utf-8')
             print(data)
+            #time.sleep(3)
                               
 
 
