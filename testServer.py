@@ -14,14 +14,16 @@ def server_program():
     dev = scapy.get_if_addr('eth1')
     test = scapy.get_if_addr('eth2')
     tcp_port = 2005
+    udp_port = 13117
 
+    #create UDP socket
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) #UDP
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    server.bind((dev, 13117)) #can delete this line
+    #server.bind((dev, udp_port)) #can delete this line
     
-    # Create a TCP/IP socket
+    # Create a TCP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
@@ -37,22 +39,26 @@ def server_program():
 
     while True:  
         time.sleep(1)
+        
+        # wating to clients thread
         def waiting():
             t = threading.currentThread()
             print(f"Server started, listening on IP address {dev}")
-            header = struct.pack('!IbH', magic_cookie, offer_msg_type, tcp_port)
+            header = struct.pack('IbH', magic_cookie, offer_msg_type, tcp_port)
             
-            #header = bytes.fromhex('abcddcba') + bytes.fromhex('02') + bytes.fromhex('07D5')
             while getattr(t, "do_run", True):
-                server.sendto(header, ('<broadcast>', 13117))
+                server.sendto(header, ('<broadcast>', udp_port))
                 time.sleep(1)
 
 
+        #handle client in game thread
         def threaded_clients(id, connection, message, answer, lock, result_queue):
             #time.sleep(1)
             try:
                 connection.sendall(str.encode(message))
-                data = connection.recv(2048).decode('utf-8')
+                data, addr = connection.recvfrom(1024)
+                
+                data = data.decode('utf-8')
                 #if data != "0":
                 lock.acquire()
                 result_queue.put((id, data))
